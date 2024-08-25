@@ -84,6 +84,39 @@ function useEffect(cb, deps)
     end
 end
 
+--- A hook that lets you memoize expensive calculations
+--- 
+--- @param factory function a function that returns the value to memoize
+--- @param deps table list of dependencies
+--- @return any any memoized value
+--- 
+--- Note: Dependencies table must be a flat table of the actual values, not the variable names used in the component
+--- 
+--- @see https://react.dev/reference/react/useMemo
+function useMemo(factory, deps)
+    local dependencies = deps or {}
+    local hook = getHook()
+    if changed(hook.deps, dependencies) then
+        hook.value = factory()
+        hook.deps = dependencies
+        hook.factory = factory
+    end
+    return hook.value
+end
+
+--- A hook that lets you memoize functions, useful for event handlers
+--- 
+--- @param cb function a function to memoize
+--- @param deps table list of dependencies
+--- @return function any memoized function
+--- 
+--- Note: Dependencies table must be a flat table of the actual values, not the variable names used in the component
+--- 
+--- @see https://react.dev/reference/react/useCallback
+function useCallback(cb, deps)
+    return useMemo(function() return cb end, deps)
+end
+
 -- Event handling logic
 local eventHandlers = {
     [defines.events.on_gui_checked_state_changed] = {},
@@ -254,5 +287,7 @@ return {
     useReducer = useReducer,
     useState = useState,
     useEffect = useEffect,
+    useMemo = useMemo,
+    useCallback = useCallback,
     render = render,
 }
