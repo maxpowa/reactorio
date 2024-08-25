@@ -24,8 +24,8 @@ end)
     - `useReducer`
     - `useEffect`
  - Plain text components (generated via `label`)
- - Props-based event API
-    - No need for a separate event listener!
+ - Simple event API
+    - No need to register a separate event listener, just add a prop
     - Supported events listed below
         - `on_gui_checked_state_changed`
         - `on_gui_click`
