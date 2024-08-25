@@ -1,12 +1,12 @@
 -- Reactorio (React for Factorio)
 
 -- require guard
-if ... ~= "__reactorio__.react" then
-    return require("__reactorio__.react")
+if ... ~= "__react__.react" then
+    return require("__react__.react")
 end
 
 -- TODO: prevent util from polluting scope
-require "__reactorio__.util"
+require "__react__.util"
 
 function createElement(type, props, ...)
     local children = { ... }

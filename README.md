@@ -3,17 +3,17 @@
 React, but for Factorio. Packaged as a mod for easy consumption.
 
 ```lua
-local Reactorio = require("__reactorio__.react")
+local React = require("__react__.react")
 
 script.on_event(defines.events.on_gui_opened, function(event)
     if not event.player then return end
 
-    local element = Reactorio.createElement(
+    local element = React.createElement(
         "frame",
         { caption = "Reactorio" },
         "Hello, world!"
     )
-    Reactorio.render(element, event.player.gui.screen)
+    React.render(element, event.player.gui.screen)
 end)
 ```
 
