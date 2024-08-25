@@ -1,12 +1,13 @@
 {
-    "name": "react",
-    "version": "0.0.1",
-    "title": "Reactorio (React for Factorio)",
-    "author": "maxpowa",
-    "contact": "",
-    "homepage": "https://github.com/maxpowa/reactorio",
-    "factorio_version": "1.1",
-    "dependencies": ["base"],
-    "description": "React-based GUI layer for Factorio mods. Inspired by my pain and suffering while trying to write clean, responsive GUI code."
-  }
-  
+  "name": "react",
+  "version": "1.0.0",
+  "title": "Reactorio (React for Factorio)",
+  "author": "maxpowa",
+  "contact": "",
+  "homepage": "https://github.com/maxpowa/reactorio",
+  "factorio_version": "1.1",
+  "dependencies": [
+    "base"
+  ],
+  "description": "React-based GUI layer for Factorio mods. Inspired by my pain and suffering while trying to write clean, responsive GUI code."
+}
