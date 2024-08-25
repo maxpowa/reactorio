@@ -1,4 +1,5 @@
 -- Reactorio (React for Factorio)
+--!strict
 
 -- require guard
 if ... ~= "__react__.react" then
@@ -8,6 +9,14 @@ end
 -- TODO: prevent util from polluting scope
 require "__react__.util"
 
+--- A function that creates a virtual element for rendering. Alternatively, you can use the shorthand `h` function, or JSX.
+--- 
+--- @param type GuiElementType the type of element to create
+--- @param props table a table of properties to set on the element
+--- @param ... table|string children - may be strings or other `createElement` results
+--- @return table vlist virtual element node(s) (vnodes are implementation details and should not be accessed directly)
+--- 
+--- @see https://react.dev/reference/react/createElement
 function createElement(type, props, ...)
     local children = { ... }
     return { type = type, props = props or {}, children = children }
@@ -27,6 +36,13 @@ local function getHook(value)
     return hook
 end
 
+--- A hook that lets you manage local component state with a reducer
+--- 
+--- @param reducer function a function that takes the current state and an action and returns the new state
+--- @param initialState any initial state value
+--- @return any state, function dispatch the current state value and a function to update it
+--- 
+--- @see https://react.dev/reference/react/useReducer
 function useReducer(reducer, initialState)
     local hook = getHook(initialState)
     local update = forceUpdate
@@ -37,6 +53,12 @@ function useReducer(reducer, initialState)
     return hook.value, dispatch
 end
 
+--- A hook that lets you add state to your component
+--- 
+--- @param initialState any initial state value
+--- @return any state, function setState the current state value and a function to update it
+--- 
+--- @see https://react.dev/reference/react/useState
 function useState(initialState)
     return useReducer(function(_, v) return v end, initialState)
 end
@@ -44,6 +66,15 @@ end
 local function changed(a, b)
     return not a or arr.some(b, function(arg, i) return arg ~= a[i + 1] end)
 end
+
+--- A hook that lets you synchronize a component with other systems
+--- 
+--- @param cb function callback to run when dependencies changed
+--- @param deps table list of dependencies
+--- 
+--- Note: Dependencies table must be a flat table of the actual values, not the variable names used in the component
+--- 
+--- @see https://react.dev/reference/react/useEffect
 function useEffect(cb, deps)
     local dependencies = deps or {}
     local hook = getHook()
@@ -53,6 +84,7 @@ function useEffect(cb, deps)
     end
 end
 
+-- Event handling logic
 local eventHandlers = {
     [defines.events.on_gui_checked_state_changed] = {},
     [defines.events.on_gui_click] = {},
@@ -71,7 +103,6 @@ local function on_event_handler(event)
         end
     end
 end
--- internal handler for any gui related event
 script.on_event(defines.events.on_gui_checked_state_changed, on_event_handler)
 script.on_event(defines.events.on_gui_click, on_event_handler)
 script.on_event(defines.events.on_gui_confirmed, on_event_handler)
@@ -111,17 +142,30 @@ local function addElementToParent(v, parent)
     end
 end
 
-function render(vlist, root_element, storage)
+--- Renders a virtual element tree to a parent element
+--- 
+--- @param vlist table list of virtual elements, created by React.createElement 
+--- @param parent LuaGuiElement element to render to
+--- @param storage table hook storage (required if rendering element tree from different sources, e.g. in both on_gui_opened and on_gui_closed)
+--- 
+--- @see createElement
+function render(vlist, parent, storage)
     if not arr.is_array(vlist) then
         vlist = { vlist }
     end
-    local ids = {}
+
+    -- initialize storage if not present
+    if not storage then
+        storage = {}
+    end
     -- capture current hook storage
     local hs = storage.hooks or {}
     -- clear hook storage global
     storage.hooks = {}
+
+    local ids = {}
     for i, vnode in ipairs(vlist) do
-        forceUpdate = function() return render(vlist, root_element, storage) end
+        forceUpdate = function() return render(vlist, parent, storage) end
 
         while (type(vnode.type) == "function") do
             local k = vnode.props and vnode.props.key
@@ -138,10 +182,10 @@ function render(vlist, root_element, storage)
             storage.hooks[k] = hooks
         end
 
-        local node = root_element.children[i]
+        local node = parent.children[i]
         local oldNodeIndex = node and node.index
         if (not node) or (vnode.type and node.type ~= vnode.type) then
-            node = addElementToParent(vnode, root_element)
+            node = addElementToParent(vnode, parent)
         end
 
         if (node and (node.type == vnode.type)) then
@@ -187,16 +231,16 @@ function render(vlist, root_element, storage)
 
         -- since we can't directly insert elements at a specific index, we have to swap them around after adding
         if (node and oldNodeIndex and (oldNodeIndex ~= node.index)) then
-            root_element.swap_children(oldNodeIndex, node.index)
+            parent.swap_children(oldNodeIndex, node.index)
         end
 
         -- remove extra elements
         while true do
-            child = root_element.children[#vlist + 1]
+            child = parent.children[#vlist + 1]
             if child then
                 storage.children[child.index] = nil
                 child.destroy()
-                render({}, root_element, storage)
+                render({}, parent, storage)
             else
                 break
             end
