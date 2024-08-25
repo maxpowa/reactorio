@@ -111,15 +111,17 @@ local function addElementToParent(v, parent)
     end
 end
 
-function render(vlist, root_element, hookStorage)
+function render(vlist, root_element, storage)
     if not arr.is_array(vlist) then
         vlist = { vlist }
     end
     local ids = {}
-    local hs = hookStorage or {}
-    hookStorage = {}
+    -- capture current hook storage
+    local hs = storage.hooks or {}
+    -- clear hook storage global
+    storage.hooks = {}
     for i, vnode in ipairs(vlist) do
-        forceUpdate = function() return render(vlist, root_element, hookStorage) end
+        forceUpdate = function() return render(vlist, root_element, storage) end
 
         while (type(vnode.type) == "function") do
             local k = vnode.props and vnode.props.key
@@ -132,8 +134,8 @@ function render(vlist, root_element, hookStorage)
             index = 1
             vnode = vnode.type(vnode.props, vnode.children, forceUpdate)
             -- reset index to nil to prevent hooks from being called outside of components
-            index = nil
-            hookStorage[k] = hooks
+            -- index = nil
+            storage.hooks[k] = hooks
         end
 
         local node = root_element.children[i]
@@ -152,13 +154,17 @@ function render(vlist, root_element, hookStorage)
                     node[k] = v
                 end
             end
-            render(vnode.children, node, hookStorage);
+
+            -- setup children storage and render (needed even if there are no children, since we can't put arbitrary data on the element itself)
+            storage.children = storage.children or {}
+            storage.children[node.index] = storage.children[node.index] or {}
+            render(vnode.children, node, storage.children[node.index]);
         end
 
         -- Reconciliation
 
         -- run new useEffect callbacks and store cleanup functions
-        for _, componentHooks in pairs(hookStorage) do
+        for _, componentHooks in pairs(storage.hooks) do
             for _, h in pairs(componentHooks) do
                 if (h.cb) then
                     h.cleanup = h.cb()
@@ -169,7 +175,7 @@ function render(vlist, root_element, hookStorage)
 
         -- run cleanup functions for removed hooks
         for key, _ in pairs(hs) do
-            if not hookStorage[key] then
+            if not storage.hooks[key] then
                 for _, h in pairs(hs[key]) do
                     if (h.cleanup) then
                         h.cleanup()
@@ -188,8 +194,9 @@ function render(vlist, root_element, hookStorage)
         while true do
             child = root_element.children[#vlist + 1]
             if child then
+                storage.children[child.index] = nil
                 child.destroy()
-                render({}, root_element, hookStorage)
+                render({}, root_element, storage)
             else
                 break
             end
