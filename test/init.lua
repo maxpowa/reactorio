@@ -4,6 +4,7 @@ local tests = {
     require("tests.01-basic"),
     require("tests.02-typical"),
     require("tests.03-basic-with-hooks"),
+    require("tests.04-useRef"),
     require("tests.99-all-elements"),
 }
 

@@ -19,29 +19,27 @@ end)
 
 ### Features
 
- - Function components
+ - Function components with hook support
     - `useState`
     - `useReducer`
     - `useEffect`
+    - `useMemo`
+    - `useCallback`
  - Plain text components (generated via `label`)
  - Simple event API
     - No need to register a separate event listener, just add a prop
-    - Supported events listed below
-        - `on_gui_checked_state_changed`
-        - `on_gui_click`
-        - `on_gui_confirmed`
-        - `on_gui_elem_changed`
-        - `on_gui_selection_state_changed`
-        - `on_gui_text_changed`
-        - `on_gui_value_changed`
+ - 
 
 ### Coming Soon™
 
  - Component shorthand similar to JSX
+ - Save/load event handler restoration
 
 ### Examples
 
-// TODO
+
+
+
 
 
 

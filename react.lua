@@ -17,4 +17,5 @@ return {
     useEffect = hooks.useEffect,
     useMemo = hooks.useMemo,
     useCallback = hooks.useCallback,
+    useRef = hooks.useRef,
 }

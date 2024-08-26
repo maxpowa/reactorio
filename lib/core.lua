@@ -27,29 +27,19 @@ local function is_array(value)
 end
 
 local function addElementToParent(v, parent, index)
-    -- internal helper to abstract swapping logic
-    local function addElement(props)
-        -- Since we can't directly insert elements at a specific index, we have to swap them around after adding
-        local element = parent.add(props)
-        if (index ~= #parent.children) then
-            parent.swap_children(index, #parent.children)
-        end
-        return element
-    end
-
     if (v.type ~= nil) then
         local props = {}
 
         -- omit event handlers from props
         for k, _ in pairs(v.props or {}) do
-            if (k:find("on_gui_") ~= 1) then
+            if (k:find("on_gui_") ~= 1 and k ~= "ref") then
                 props[k] = v.props[k]
             end
         end
 
-        return addElement(merge(props, { type = v.type }))
+        return parent.add(merge(props, { type = v.type, index = index }))
     elseif (type(v) == "string") then
-        return addElement({ type = "label", caption = v })
+        return parent.add({ type = "label", caption = v, index = index })
     else
         error("Invalid element: " .. serpent.line(v))
     end
@@ -115,6 +105,8 @@ local function render(vlist, parent, storage)
             if (k:find("on_gui_") == 1 and type(v) == "function") then
                 -- add event handler cleanup functions to the storage table
                 createScopedHandler(defines.events[k], node, v, node.index)
+            elseif (k == "ref") then
+                v.current = node
             elseif ((not createdNewNode) and compareNodeProp(node, k, v)) then
                 -- If we created a new node, we don't need to update it
                 node[k] = v

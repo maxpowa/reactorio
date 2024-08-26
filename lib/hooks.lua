@@ -118,6 +118,16 @@ local function useCallback(cb, deps)
     return useMemo(function() return cb end, deps)
 end
 
+--- A hook that lets you store a mutable value
+--- 
+--- @param initialValue any initial value
+--- @return table ref a mutable reference object
+--- 
+--- @see https://react.dev/reference/react/useRef
+local function useRef(initialValue)
+    return useMemo(function() return { current = initialValue } end, {})
+end
+
 return {
     -- Core util for hooks
     enableHookContext = enableHookContext,
@@ -128,5 +138,6 @@ return {
     useState = useState,
     useEffect = useEffect,
     useMemo = useMemo,
-    useCallback = useCallback
+    useCallback = useCallback,
+    useRef = useRef,
 }

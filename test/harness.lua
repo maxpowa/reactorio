@@ -31,7 +31,7 @@ local function TestHarness(props)
     local tests = props.tests
     local player = props.player
 
-    local current_test_index, setState = React.useState(2)
+    local current_test_index, setState = React.useState(1)
     local autoRun, setAutoRun = React.useState(false)
 
     local current_test = tests[current_test_index]
@@ -47,7 +47,7 @@ local function TestHarness(props)
         setAutoRun(not autoRun)
     end
 
-    useEffect(function()
+    React.useEffect(function()
         local timeoutId = nil
         if autoRun and current_test_index < #tests then
             timeoutId = setTimeout(function()
