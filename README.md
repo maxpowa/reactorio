@@ -25,6 +25,7 @@ end)
     - `useEffect`
     - `useMemo`
     - `useCallback`
+    - `useRef`
  - Plain text components (generated via `label`)
  - Simple event API
     - No need to register a separate event listener, just add a prop
@@ -32,8 +33,9 @@ end)
 
 ### Coming Soon™
 
- - Component shorthand similar to JSX
+ - Component shorthand similar to JSX (most likely going to adapt https://github.com/hishamhm/f-strings)
  - Save/load event handler restoration
+ - Context API support (`useContext`)
 
 ### Examples
 

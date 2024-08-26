@@ -120,13 +120,16 @@ local function render(vlist, parent, storage)
     end
 
     -- Reconciliation
-
     -- run new useEffect callbacks and store cleanup functions
     for _, componentHooks in pairs(storage.hooks) do
-        for _, h in pairs(componentHooks) do
-            if (h.cb) then
-                h.cleanup = h.cb()
-                h.cb = nil
+        for _, hook in pairs(componentHooks) do
+            if (hook.cb) then
+                local oldCleanup = hook.cleanup
+                -- run new effect
+                hook.cleanup = hook.cb()
+                -- run cleanup for existing effect (deps changed)
+                if oldCleanup and (type(oldCleanup) == "function") then oldCleanup() end
+                hook.cb = nil
             end
         end
     end
