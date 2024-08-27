@@ -36,8 +36,22 @@ end)
  - Save/load event handler restoration
  - Context API support (`createContext`/`useContext`)
 
-### Examples
+### Running Tests
 
+Run Factorio and launch the "React for Factorio/Unit Testing" scenario. This can be automated by adding a launch argument to your Factorio configuration. As of 1.1.109, the argument is `--load-scenario react/react-testing`. 
+
+If you're using FMTK/VSCode, the below launch configuration should work.
+```json
+        {
+            "type": "factoriomod",
+            "request": "launch",
+            "name": "Factorio Unit Test (React)",
+            "factorioArgs": [
+                "--load-scenario",
+                "react/react-testing"
+            ]
+        },
+```
 
 ### Credits
 

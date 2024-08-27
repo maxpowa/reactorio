@@ -1,10 +1,18 @@
 local React = require("__react__.react")
+local tests = {
+    require("tests.01-basic"),
+    require("tests.02-typical"),
+    require("tests.03-basic-with-hooks"),
+    require("tests.04-useRef"),
+    require("tests.05-lsx"),
+    require("tests.99-all-elements"),
+}
 
-local RUN_ALL_TESTS_DELAY = 60 * 3 -- 3 seconds
+local RUN_ALL_TESTS_DELAY = 60 * 2 -- 3 seconds
 
 local timeoutHandlers = {}
 -- This isn't perfect - in editor mode game.tick is not updated, but it's good enough for testing.
--- In editor mode you can manually advance the tick by pressing the "Advance tick" button.
+-- The tests should always be run in game mode anyway.
 script.on_event(defines.events.on_tick, function()
     for i, handler in pairs(timeoutHandlers) do
         if (game.tick - handler.start > 0) and ((game.tick - handler.start) % handler.delay == 0) then
@@ -27,12 +35,12 @@ local function clearTimeout(index)
     timeoutHandlers[index] = nil
 end
 
+-- Test harness component, provides the ability for the user to navigate through the tests
 local function TestHarness(props)
-    local tests = props.tests
     local player = props.player
 
     local current_test_index, setState = React.useState(1)
-    local autoRun, setAutoRun = React.useState(false)
+    local autoRun, setAutoRun = React.useState(true)
 
     local current_test = tests[current_test_index]
     local on_gui_click = function()
@@ -86,4 +94,22 @@ local function TestHarness(props)
     )
 end
 
-return TestHarness
+function run_tests(player)
+    player.print("Factorio React Testing Apparatus loaded")
+
+    if player.gui.screen["react_root"] then
+        player.gui.screen["react_root"].destroy()
+    end
+    local root = player.gui.screen.add({ type = "frame", name = "react_root", caption = "React Testing Apparatus", direction = "vertical" })
+    root.auto_center = true
+
+    -- Dogfood the tests :)
+    global.hook_storage = {}
+    React.render(React.createElement(TestHarness, { player = player }), root, global.hook_storage)
+end
+
+script.on_event(defines.events.on_player_created, function(event)
+    local player = game.players[event.player_index]
+    player.character.destroy() -- remove player character to prevent them from moving around
+    run_tests(player)
+end)

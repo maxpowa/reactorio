@@ -4,6 +4,7 @@ end
 
 local core = require("__react__.lib.core")
 local hooks = require("__react__.lib.hooks")
+local lsx = require("__react__.lib.lsx")
 
 return {
     -- Core
@@ -18,4 +19,7 @@ return {
     useMemo = hooks.useMemo,
     useCallback = hooks.useCallback,
     useRef = hooks.useRef,
+
+    -- LSX
+    lsx = lsx.lsx
 }
