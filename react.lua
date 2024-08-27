@@ -8,6 +8,7 @@ local lsx = require("__react__.lib.lsx")
 
 return {
     -- Core
+    createRoot = core.createRoot,
     createElement = core.createElement,
     h = core.createElement,
     render = core.render,

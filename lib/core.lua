@@ -110,6 +110,11 @@ local function render(vlist, parent, storage)
     for i, vnode in ipairs(vlist) do
         local forceUpdate = function() return render(vlist, parent, storage) end
 
+        -- special handling for string vnodes
+        if type(vnode) == "string" then
+            vnode = { type = "label", props = { caption = vnode }}
+        end
+
         while (type(vnode.type) == "function") do
             local k = vnode.props and vnode.props.key
             if not k then
@@ -187,7 +192,15 @@ local function createElement(type, props, ...)
     return { type = type, props = props or {}, children = children }
 end
 
+local function createRoot(parent, props)
+    if parent["react_root"] then
+        parent["react_root"].destroy()
+    end
+    return parent.add(merge(props or {}, { type = "frame", name = "react_root", }))
+end
+
 return {
     createElement = createElement,
+    createRoot = createRoot,
     render = render,
 }

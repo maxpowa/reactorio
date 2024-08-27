@@ -5,15 +5,22 @@ React, but for Factorio. Packaged as a mod for easy consumption.
 ```lua
 local React = require("__react__.react")
 
-script.on_event(defines.events.on_gui_opened, function(event)
-    if not event.player then return end
+script.on_event(defines.events.on_player_created, function(event)
+    local player = game.players[event.player_index]
 
-    local element = React.createElement(
-        "frame",
-        { caption = "Reactorio" },
-        "Hello, world!"
-    )
-    React.render(element, event.player.gui.screen)
+    -- Create the root element we are going to put our GUI into (props can be customized)
+    local root = React.createRoot(player.gui.center, { style = "outer_frame" })
+
+    -- Build our virtual dom tree
+    local vdom = React.lsx[[
+        <frame caption="React for Factorio">
+            Hello, world!
+            <button>Click Me!</button>
+        </frame>
+    ]]
+
+    -- Render!
+    React.render(vdom, root)
 end)
 ```
 
@@ -29,11 +36,14 @@ end)
  - Plain text components (generated via `label`)
  - Simple event API
     - No need to register a separate event listener, just add a prop
+ - LSX, Lua version of JSX
+    - `lsx'<label caption="Hello world!" />'` is equivalent to `createElement("label", { caption = "Hello world!" })`
+
 
 ### Coming Soon™
 
- - Component shorthand similar to JSX (most likely going to adapt https://github.com/hishamhm/f-strings)
- - Save/load event handler restoration
+ - Variable support in LSX (via additional param in lsx function)
+ - Save/load event handler restoration (maybe this works now?)
  - Context API support (`createContext`/`useContext`)
 
 ### Running Tests
