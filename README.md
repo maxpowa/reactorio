@@ -29,20 +29,16 @@ end)
  - Plain text components (generated via `label`)
  - Simple event API
     - No need to register a separate event listener, just add a prop
- - 
 
 ### Coming Soon™
 
  - Component shorthand similar to JSX (most likely going to adapt https://github.com/hishamhm/f-strings)
  - Save/load event handler restoration
- - Context API support (`useContext`)
+ - Context API support (`createContext`/`useContext`)
 
 ### Examples
 
 
+### Credits
 
-
-
-
-
-
+The core render loop/virtual dom is heavily inspired by [O!](https://github.com/zserge/o), with other hook implementations referenced from [Preact](https://github.com/preactjs/preact).

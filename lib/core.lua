@@ -8,8 +8,8 @@ end
 
 -- Explicit imports here prevent scope pollution
 local createScopedHandler = require "__react__.lib.events".createScopedHandler
-local enableHookContext = require "__react__.lib.hooks".enableHookContext
-local disableHookContext = require "__react__.lib.hooks".disableHookContext
+local enableHooks = require "__react__.lib.hooks".enableHooks
+local disableHooks = require "__react__.lib.hooks".disableHooks
 
 -- Helper functions since I'm a filthy typescript user and I can't live without certain niceties
 local function merge(tbl1, tbl2)
@@ -53,6 +53,36 @@ local function compareNodeProp(node, k, v)
     return node[k] ~= v
 end
 
+-- immediate mode rendering
+local function renderImmediate(vnode, index, parent, storage, recurse)
+    local node = parent.children[index]
+    local createdNewNode = false
+    if (not node) or ((node and node.type) ~= vnode.type) then
+        node = addElementToParent(vnode, parent, index)
+        createdNewNode = true
+        if not node then
+            error("Failed to add element to GUI: " .. serpent.line(vnode))
+        end
+    end
+
+    for k, v in pairs(vnode.props) do
+        if (k:find("on_gui_") == 1 and type(v) == "function") then
+            -- add event handler cleanup functions to the storage table
+            createScopedHandler(defines.events[k], node, v, node.index)
+        elseif (k == "ref") then
+            v.current = node
+        elseif ((not createdNewNode) and compareNodeProp(node, k, v)) then
+            -- If we created a new node, we don't need to update it
+            node[k] = v
+        end
+    end
+
+    -- setup children storage and render (needed even if there are no children, since we can't put arbitrary data on the element itself)
+    storage.children = storage.children or {}
+    storage.children[node.index] = storage.children[node.index] or {}
+    recurse(vnode.children, node, storage.children[node.index])
+end
+
 --- Renders a virtual element tree to a parent element
 ---
 --- @param vlist table list of virtual elements, created by React.createElement
@@ -74,7 +104,9 @@ local function render(vlist, parent, storage)
     -- clear hook storage global
     storage.hooks = {}
 
+    -- render the virtual element list
     local ids = {}
+    local extraNodeCount = 0
     for i, vnode in ipairs(vlist) do
         local forceUpdate = function() return render(vlist, parent, storage) end
 
@@ -86,37 +118,20 @@ local function render(vlist, parent, storage)
             end
 
             local index = 1
-            enableHookContext(hs[k] or {}, index, forceUpdate)
+            enableHooks(hs[k] or {}, index, forceUpdate)
             vnode = vnode.type(vnode.props, vnode.children, forceUpdate)
-            storage.hooks[k] = disableHookContext()
+            storage.hooks[k] = disableHooks()
         end
 
-        local node = parent.children[i]
-        local createdNewNode = false
-        if (not node) or ((node and node.type) ~= vnode.type) then
-            node = addElementToParent(vnode, parent, i)
-            createdNewNode = true
-            if not node then
-                error("Failed to add element to GUI: " .. serpent.line(vnode))
+        if is_array(vnode) then
+            for _, v in ipairs(vnode) do
+                -- we need to keep the index consistent, so we add extra nodes to the count
+                extraNodeCount = extraNodeCount + 1
+                renderImmediate(v, i+extraNodeCount, parent, storage, render)
             end
+        else
+            renderImmediate(vnode, i+extraNodeCount, parent, storage, render)
         end
-
-        for k, v in pairs(vnode.props) do
-            if (k:find("on_gui_") == 1 and type(v) == "function") then
-                -- add event handler cleanup functions to the storage table
-                createScopedHandler(defines.events[k], node, v, node.index)
-            elseif (k == "ref") then
-                v.current = node
-            elseif ((not createdNewNode) and compareNodeProp(node, k, v)) then
-                -- If we created a new node, we don't need to update it
-                node[k] = v
-            end
-        end
-
-        -- setup children storage and render (needed even if there are no children, since we can't put arbitrary data on the element itself)
-        storage.children = storage.children or {}
-        storage.children[node.index] = storage.children[node.index] or {}
-        render(vnode.children, node, storage.children[node.index])
     end
 
     -- Reconciliation
@@ -148,7 +163,8 @@ local function render(vlist, parent, storage)
 
     -- remove extra elements
     while true do
-        child = parent.children[#vlist + 1]
+        -- only remove elements that are not part of the virtual element list (including extra nodes added for fragments)
+        child = parent.children[#vlist + extraNodeCount + 1]
         if child then
             child.destroy()
             render({}, parent, storage)

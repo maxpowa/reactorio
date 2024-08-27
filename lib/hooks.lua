@@ -16,12 +16,12 @@ end
 local hooks
 local index = nil
 local forceUpdate
-local function enableHookContext(h, i, fu)
+local function enableHooks(h, i, fu)
     hooks = h
     index = i
     forceUpdate = fu
 end
-local function disableHookContext()
+local function disableHooks()
     index = nil
     return hooks
 end
@@ -130,8 +130,8 @@ end
 
 return {
     -- Core util for hooks
-    enableHookContext = enableHookContext,
-    disableHookContext = disableHookContext,
+    enableHooks = enableHooks,
+    disableHooks = disableHooks,
 
     -- Hooks
     useReducer = useReducer,
