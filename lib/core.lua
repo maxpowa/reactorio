@@ -32,7 +32,17 @@ local function addElementToParent(v, parent, index)
 
         -- omit event handlers from props
         for k, _ in pairs(v.props or {}) do
-            if (k:find("on_gui_") ~= 1 and k ~= "ref") then
+            if (k:find("on_gui_") == 1 or k == "ref") then
+                -- do nothing
+            elseif (k == "style") then
+                if type(v.props.style) == "string" then
+                    -- factorio only allows style at `.add` if its a string, otherwise it errors
+                    props.style = v.props.style
+                elseif (v.props.style.name) then
+                    -- we can initialize the style prop with the name value if it exists
+                    props.style = v.props.style.name
+                end
+            else
                 props[k] = v.props[k]
             end
         end
@@ -71,6 +81,15 @@ local function renderImmediate(vnode, index, parent, storage, recurse)
             createScopedHandler(defines.events[k], node, v, node.index)
         elseif (k == "ref") then
             v.current = node
+        elseif (k == "style") then
+            -- set style updates directly on the element
+            if type(v) ~= "string" then
+                for styleKey, styleValue in pairs(v) do
+                    if (node.style[styleKey] ~= styleValue) then
+                        node.style[styleKey] = styleValue
+                    end
+                end
+            end
         elseif ((not createdNewNode) and compareNodeProp(node, k, v)) then
             -- If we created a new node, we don't need to update it
             node[k] = v
@@ -134,7 +153,7 @@ local function render(vlist, parent, storage)
                 extraNodeCount = extraNodeCount + 1
                 renderImmediate(v, i+extraNodeCount, parent, storage, render)
             end
-        else
+        elseif type(vnode) ~= nil then
             renderImmediate(vnode, i+extraNodeCount, parent, storage, render)
         end
     end
@@ -192,11 +211,17 @@ local function createElement(type, props, ...)
     return { type = type, props = props or {}, children = children }
 end
 
+--- A function that creates a "react_root" element. This is used as a container for the element tree in `render`.
+--- 
+--- @param parent LuaGuiElement the parent element to add the root to (e.g. `player.gui.screen`)
+--- @param props? table a table of properties to set on the root element (you should not need to)
+---
+--- @return LuaGuiElement root the root element
 local function createRoot(parent, props)
     if parent["react_root"] then
         parent["react_root"].destroy()
     end
-    return parent.add(merge(props or {}, { type = "frame", name = "react_root", }))
+    return parent.add(merge(props or {}, { type = "flow", name = "react_root", }))
 end
 
 return {
