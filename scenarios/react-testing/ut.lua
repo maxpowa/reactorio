@@ -1,20 +1,6 @@
 UnitTest = {
     __suites = {},
-    __results = {},
-    __totalTestCount = 0,
-    __passing = 0,
-    __failing = 0
 }
-
-local function __emit(status, suiteName, testCaseName)
-    UnitTest.__results[suiteName] = UnitTest.__results[suiteName] or {}
-    table.insert(UnitTest.__results[suiteName], { status = status, testCaseName = testCaseName })
-    if status == "pass" then
-        UnitTest.__passing = UnitTest.__passing + 1
-    else
-        UnitTest.__failing = UnitTest.__failing + 1
-    end
-end
 
 function UnitTest.assert(condition, msg)
     if not condition then
@@ -22,58 +8,93 @@ function UnitTest.assert(condition, msg)
     end
 end
 
-local suiteRef = {}
-function UnitTest.describe(suiteName, suiteFn)
-    if suiteRef.current then
-        error("Test suites cannot be nested")
+local function buildSuite(suiteName, tests)
+    local keys = {}
+    for k, _ in pairs(tests) do
+        table.insert(keys, k)
     end
-
-    UnitTest.__suites[suiteName] = function()
-        suiteRef.current = suiteName
-        suiteFn()
-        suiteRef.current = nil
-    end
-end
-
-local runnerVArgs = {}
-function UnitTest.it(testCaseName, testCaseFn)
-    if not suiteRef.current then
-        error("Test cases must be defined within a suite (describe block)")
-    end
-
-    UnitTest.__totalTestCount = UnitTest.__totalTestCount + 1
-    local status, err = pcall(testCaseFn, runnerVArgs.current)
-    if status then
-        __emit("pass", suiteRef.current, testCaseName)
-    else
-        __emit("fail", suiteRef.current, testCaseName .. " - " .. err)
-    end
-end
-
-function UnitTest.reset()
-    UnitTest.__suites = {}
-    UnitTest.__results = {}
-    UnitTest.__totalTestCount = 0
-    UnitTest.__passing = 0
-    UnitTest.__failing = 0
-end
-
-function UnitTest.summary()
+    local i = 1
     return {
-        total = UnitTest.__totalTestCount,
-        passing = UnitTest.__passing,
-        failing = UnitTest.__failing,
-        results = UnitTest.__results,
+        name = suiteName,
+        tests = tests,
+        runAll = function()
+            for _, test in pairs(tests) do
+                test.run()
+            end
+        end,
+        runNext = function(...)
+            if i <= #keys then
+                local result = tests[keys[i]].run(...)
+                i = i + 1
+                return result
+            end
+            return nil
+        end
     }
 end
 
-function UnitTest.run(...)
-    for _, suiteFn in pairs(UnitTest.__suites) do
-        runnerVArgs.current = ...
-        suiteFn()
-        runnerVArgs.current = nil
+function UnitTest.getRunner()
+    local suites = {}
+    for k, _ in pairs(UnitTest.__suites) do
+        table.insert(suites, buildSuite(k, UnitTest.__suites[k].tests))
     end
-    return UnitTest.summary()
+    local i = 1
+
+    local function runNext(...)
+        if i <= #suites then
+            local result = suites[i].runNext(...)
+            if (result == nil) then
+                i = i + 1
+                if (i <= #suites) then
+                    return runNext(...)
+                end
+                return nil
+            end
+            return result
+        end
+        return nil
+    end
+
+    return {
+        runNext = runNext
+    }
+end
+
+local suiteRef = {
+    name = nil,
+    tests = {}
+}
+function UnitTest.describe(suiteName, suiteFn)
+    if suiteRef.name then
+        error("Test suites cannot be nested")
+    end
+    if (UnitTest.__suites[suiteName]) then
+        error("Suite already exists: " .. suiteName)
+    end
+
+    suiteRef.name = suiteName
+    suiteRef.tests = {}
+    suiteFn()
+    suiteRef.name = nil
+
+    UnitTest.__suites[suiteName] = {
+        name = suiteName,
+        tests = suiteRef.tests,
+    }
+end
+
+function UnitTest.it(testCaseName, testCaseFn)
+    if not suiteRef.name then
+        error("Test cases must be defined within a suite (describe block)")
+    end
+
+    local suiteName = suiteRef.name
+
+    local fn = function(...)
+        local status, err = pcall(testCaseFn, ...)
+        return status, err
+    end
+    table.insert(suiteRef.tests, { name = testCaseName, suite = suiteName, run = fn })
 end
 
 return UnitTest

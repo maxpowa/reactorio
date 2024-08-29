@@ -4,10 +4,8 @@ if ... ~= "__react__.lib.core" then
     return require("__react__.lib.core")
 end
 
--- TODO: Support Fragments, to allow returning multiple elements from a function component
-
 -- Explicit imports here prevent scope pollution
-local createScopedHandler = require "__react__.lib.events".createScopedHandler
+local addScopedHandler = require "__react__.lib.events".addScopedHandler
 local enableHooks = require "__react__.lib.hooks".enableHooks
 local disableHooks = require "__react__.lib.hooks".disableHooks
 
@@ -57,10 +55,48 @@ end
 
 local function compareNodeProp(node, k, v)
     -- Wube, WHY?!
-    if (node.type == "slider" and k == "value") then
-        return node.slider_value ~= v
+    if (node.type == "slider") then
+        if (k == "value") then
+            return node.slider_value ~= v
+        elseif (k == "minimum_value") then
+            return node.get_slider_minimum() ~= v
+        elseif (k == "maximum_value") then
+            return node.get_slider_maximum() ~= v
+        elseif (k == "value_step") then
+            return node.get_slider_value_step() ~= v
+        elseif (k == "discrete_slider") then
+            return node.get_slider_discrete_slider() ~= v
+        elseif (k == "discrete_values") then
+            return node.get_slider_discrete_values() ~= v
+        end
     end
     return node[k] ~= v
+end
+
+local function updateNodeProp(node, k, v)
+    -- Wube, this is infuriating... The game is practically unplayable now that I know about this.
+    if (node.type == "slider") then
+        if (k == "value") then
+            node.slider_value = v
+            return
+        elseif (k == "minimum_value") then
+            node.set_slider_minimum_maximum(v, node.get_slider_maximum())
+            return
+        elseif (k == "maximum_value") then
+            node.set_slider_minimum_maximum(node.get_slider_minimum(), v)
+            return
+        elseif (k == "value_step") then
+            node.set_slider_value_step(v)
+            return
+        elseif (k == "discrete_slider") then
+            node.set_slider_discrete_slider(v)
+            return
+        elseif (k == "discrete_values") then
+            node.set_slider_discrete_values(v)
+            return
+        end
+    end
+    node[k] = v
 end
 
 -- immediate mode rendering
@@ -77,8 +113,8 @@ local function renderImmediate(vnode, index, parent, storage, recurse)
 
     for k, v in pairs(vnode.props) do
         if (k:find("on_gui_") == 1 and type(v) == "function") then
-            -- add event handler cleanup functions to the storage table
-            createScopedHandler(defines.events[k], node, v, node.index)
+            -- TODO: only add new handlers if they changed
+            addScopedHandler(defines.events[k], node, v, node.index)
         elseif (k == "ref") then
             v.current = node
         elseif (k == "style") then
@@ -92,10 +128,11 @@ local function renderImmediate(vnode, index, parent, storage, recurse)
             end
         elseif ((not createdNewNode) and compareNodeProp(node, k, v)) then
             -- If we created a new node, we don't need to update it
-            node[k] = v
+            updateNodeProp(node, k, v)
         end
     end
 
+    -- TODO: only rerender children if they changed (will need to store the previous children in storage I think...)
     -- setup children storage and render (needed even if there are no children, since we can't put arbitrary data on the element itself)
     storage.children = storage.children or {}
     storage.children[node.index] = storage.children[node.index] or {}
@@ -116,7 +153,7 @@ local function render(vlist, parent, storage)
 
     -- initialize storage if not present
     if not storage then
-        storage = { hooks = {}, event_handlers = {} }
+        storage = { hooks = {} }
     end
     -- capture current hook storage
     local hs = storage.hooks or {}
@@ -127,11 +164,12 @@ local function render(vlist, parent, storage)
     local ids = {}
     local extraNodeCount = 0
     for i, vnode in ipairs(vlist) do
+        -- TODO: defer and batch forceUpdate requests
         local forceUpdate = function() return render(vlist, parent, storage) end
 
         -- special handling for string vnodes
         if type(vnode) == "string" then
-            vnode = { type = "label", props = { caption = vnode }}
+            vnode = { type = "label", props = { caption = vnode } }
         end
 
         while (type(vnode.type) == "function") do
@@ -141,8 +179,7 @@ local function render(vlist, parent, storage)
                 k = '' .. ids[vnode.type]
             end
 
-            local index = 1
-            enableHooks(hs[k] or {}, index, forceUpdate)
+            enableHooks(hs[k] or {}, forceUpdate)
             vnode = vnode.type(vnode.props, vnode.children, forceUpdate)
             storage.hooks[k] = disableHooks()
         end
@@ -151,10 +188,10 @@ local function render(vlist, parent, storage)
             for _, v in ipairs(vnode) do
                 -- we need to keep the index consistent, so we add extra nodes to the count
                 extraNodeCount = extraNodeCount + 1
-                renderImmediate(v, i+extraNodeCount, parent, storage, render)
+                renderImmediate(v, i + extraNodeCount, parent, storage, render)
             end
         elseif type(vnode) ~= nil then
-            renderImmediate(vnode, i+extraNodeCount, parent, storage, render)
+            renderImmediate(vnode, i + extraNodeCount, parent, storage, render)
         end
     end
 
@@ -186,7 +223,7 @@ local function render(vlist, parent, storage)
     end
 
     -- remove extra elements
-    while true do
+    while not parent.tags.__react_ignored do
         -- only remove elements that are not part of the virtual element list (including extra nodes added for fragments)
         child = parent.children[#vlist + extraNodeCount + 1]
         if child then
@@ -212,7 +249,7 @@ local function createElement(type, props, ...)
 end
 
 --- A function that creates a "react_root" element. This is used as a container for the element tree in `render`.
---- 
+---
 --- @param parent LuaGuiElement the parent element to add the root to (e.g. `player.gui.screen`)
 --- @param props? table a table of properties to set on the root element (you should not need to)
 ---

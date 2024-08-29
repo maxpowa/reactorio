@@ -20,6 +20,7 @@ return {
     useMemo = hooks.useMemo,
     useCallback = hooks.useCallback,
     useRef = hooks.useRef,
+    useEvent = hooks.useEvent,
 
     -- LSX
     lsx = lsx.lsx

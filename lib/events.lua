@@ -5,7 +5,7 @@ if ... ~= "__react__.lib.events" then
 end
 
 -- TODO: This may change across versions... not very future-proof
-local supported_events = {
+local supported_scoped_events = {
     [defines.events.on_gui_click] = {"button", "sprite-button"},
     [defines.events.on_gui_checked_state_changed] = {"checkbox"},
     [defines.events.on_gui_confirmed] = {"textfield"},
@@ -32,21 +32,20 @@ local function on_event_handler(event)
     local eventId = event.name
     handlers = eventHandlers[eventId]
     for _, eventHandler in pairs(handlers or {}) do
-        if (type(eventHandler) == "function") then
-            eventHandler(event)
-        end
+        eventHandler(event)
     end
 end
 
 -- Factorio requires this funky approach to event handling because the event handlers are global, instead of per-element
-local function createScopedHandler(eventId, element, fn, index)
-    -- TODO: throw an error if the event does not make sense for the element
-    if (eventHandlers[eventId] == nil) then
-        error("Unsupported event: " .. eventId)
+local function addScopedHandler(eventId, element, fn, index)
+    if not contains(supported_scoped_events[eventId], element.type) then
+        error("Unsupported event for element type: " .. eventId .. " " .. element.type)
+    elseif type(fn) ~= "function" then
+        error("Event handler must be a function")
     end
 
-    if not contains(supported_events[eventId], element.type) then
-        error("Unsupported event for element type: " .. eventId .. " " .. element.type)
+    if eventHandlers[eventId][index] then
+        eventHandlers[eventId][index] = nil
     end
 
     eventHandlers[eventId][index] = function(event)
@@ -60,18 +59,46 @@ local function createScopedHandler(eventId, element, fn, index)
 
     -- return a cleanup function we can use in core to remove the handler
     return function()
-        game.print("Cleaning up event handler for " .. eventId .. " for element " .. element.index .. " of type " .. element.type)
+        eventHandlers[eventId][index] = nil
+    end
+end
+
+--- Create an event handler for the given event type
+--- 
+--- @param eventId integer the event id to handle
+--- @param fn function the function to call when the event is triggered
+--- @param options { index?: number, custom?: boolean } custom allows for custom events
+--- 
+--- @return function cleanup a cleanup function that will remove the handler
+--- 
+local function addGlobalHandler(eventId, fn, options)
+    options = options or {}
+    if type(fn) ~= "function" then
+        error("Event handler must be a function")
+    elseif not options.custom and type(eventId) ~= "number" then
+        error("Unsupported event: " .. eventId)
+    elseif options.custom and not eventHandlers[eventId] then
+        eventHandlers[eventId] = {}
+        script.on_event(eventId, on_event_handler)
+    end
+
+    local index = options.index or #eventHandlers[eventId] + 1
+    eventHandlers[eventId][index] = fn
+    return function()
         eventHandlers[eventId][index] = nil
     end
 end
 
 -- Register our supported events with the game's event emitter
-for k, _ in pairs(supported_events) do
+for k, _ in pairs(defines.events) do
     -- initialize the event handler table with this event type
-    eventHandlers[k] = {}
-    script.on_event(k, on_event_handler)
+    eventHandlers[defines.events[k]] = {}
+    script.on_event(defines.events[k], on_event_handler)
 end
 
+
+
 return {
-    createScopedHandler = createScopedHandler
+    addScopedHandler = addScopedHandler,
+    addGlobalHandler = addGlobalHandler,
 }

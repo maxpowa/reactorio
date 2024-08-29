@@ -9,15 +9,42 @@ local function TestHarness(props)
     local player = props.player
 
     -- this is the element that will host the actual tests
-    local hostElement = React.useRef({ current = nil })
+    local hostElement = React.useRef()
+    local testRunner = React.useRef()
     local results, setResults = React.useState()
+    local autoRun, setAutoRun = React.useState(false)
+    local testInterval, setTestInterval = React.useState(5)
 
-    local on_click_run = function()
-        setResults(nil)
-        -- TODO: Figure out how to do this either as a coroutine or just update the UI as each test runs
-        local runResults = UnitTesting.run({ hostElement = hostElement.current, player = player })
-        setResults(runResults)
-    end
+    local run_next_test = React.useCallback(function()
+        if hostElement.current then hostElement.current.clear() end
+        if (testRunner.current) then
+            local status, err = testRunner.current.runNext({ hostElement = hostElement.current, player = player })
+            if status ~= nil then
+                setResults({
+                    total = (results and results.total + 1) or 1,
+                    passing = (results and results.passing or 0) + (status and 1 or 0),
+                    failing = (results and results.failing or 0) + (status and 0 or 1)
+                })
+            else
+                testRunner.current = nil
+            end
+        end
+    end, { testRunner, hostElement, })
+
+    React.useEvent(defines.events.on_tick, function(event)
+        if (testRunner.current and (event.tick % testInterval == 0) and autoRun) then
+            run_next_test()
+            if (testRunner.current == nil) then
+                setAutoRun(false)
+            end
+        end
+    end, {}, { testRunner, hostElement, testInterval, autoRun })
+
+    local on_click_run = React.useCallback(function()
+        setResults(nil);
+        testRunner.current = UnitTesting.getRunner();
+        setAutoRun(true);
+    end, { testRunner, })
 
     local on_click_exit = function()
         game.set_game_state {
@@ -28,8 +55,8 @@ local function TestHarness(props)
     end
 
     local results_info_string = results and
-    string.format("Tests run: %d, passing: %d, failing: %d", results.total, results.passing, results.failing) or
-    "No tests run";
+        string.format("Tests run: %d, passing: %d, failing: %d", results.total, results.passing, results.failing) or
+        "No tests run";
 
     return createElement("frame", {
             caption = "React Test App",
@@ -48,7 +75,7 @@ local function TestHarness(props)
                 },
                 createElement("flow", {
                         style = {
-                            name= "player_input_horizontal_flow",
+                            name = "player_input_horizontal_flow",
                             top_margin = 4,
                         },
                         direction = "horizontal"
@@ -59,10 +86,34 @@ local function TestHarness(props)
                             horizontally_stretchable = true,
                         }
                     }),
+                    createElement("label", {
+                        caption = "Ticks per test:",
+                        style = { name = "heading_3_label" }
+                    }),
+                    createElement("textfield", {
+                        text = testInterval .. "",
+                        style = "short_number_textfield",
+                        on_gui_text_changed = function(event)
+                            local value = tonumber(event.element.text);
+                            if (type(value) == "number") then
+                                setTestInterval(value)
+                            end
+                        end
+                    }),
+                    createElement("slider", {
+                        value = testInterval,
+                        minimum_value = 1,
+                        maximum_value = 300,
+                        style = "notched_slider",
+                        on_gui_value_changed = function(event)
+                            setTestInterval(event.element.slider_value)
+                        end,
+
+                    }),
                     createElement("button", {
                         on_gui_click = on_click_run,
                         caption = "Run tests",
-                        style = "confirm_button"
+                        style = "confirm_double_arrow_button"
                     })
                 )
             ),
@@ -71,14 +122,17 @@ local function TestHarness(props)
                 style = { name = "heading_2_label", top_margin = 8 }
             }),
             createElement("frame", {
-                    style = {
-                        name = "inside_shallow_frame_with_padding",
-                        vertically_stretchable = true,
-                        top_margin = 8,
-                        bottom_margin = 8
-                    },
-                    ref = hostElement
-                }
+                style = {
+                    name = "inside_shallow_frame_with_padding",
+                    vertically_stretchable = true,
+                    top_margin = 8,
+                    bottom_margin = 8
+                },
+                tags = {
+                    ["__react_ignored"] = true,
+                },
+                ref = hostElement
+            }
             ),
             createElement("button", {
                 on_gui_click = on_click_exit,

@@ -4,6 +4,9 @@ if ... ~= "__react__.lib.hooks" then
     return require("__react__.lib.hooks")
 end
 
+local addGlobalHandler = require("__react__.lib.events").addGlobalHandler
+local addScopedHandler = require("__react__.lib.events").addScopedHandler
+
 local function some(tbl, func)
     for i, v in ipairs(tbl) do
         if func(v, i) then
@@ -16,9 +19,9 @@ end
 local hooks
 local index = nil
 local forceUpdate
-local function enableHooks(h, i, fu)
+local function enableHooks(h, fu)
     hooks = h
-    index = i
+    index = 1
     forceUpdate = fu
 end
 local function disableHooks()
@@ -128,6 +131,24 @@ local function useRef(initialValue)
     return useMemo(function() return { current = initialValue } end, {})
 end
 
+--- A hook that lets you add local event handlers without overwriting other handlers in script.on_event
+--- 
+--- Note: This is not meant for GUI event handling, use `on_gui_*` props in your component instead. The intended use 
+--- is for global events like `on_tick`, `on_player_created`, etc.
+--- 
+--- This should be used sparingly, as it can lead to significant render performance issues.
+--- 
+--- @param eventId integer the event id to handle
+--- @param cb function the function to call when the event is triggered
+--- @param options { index?: number, custom?: boolean } custom allows for custom events
+--- @param deps table list of dependencies
+local function useEvent(eventId, cb, options, deps)
+    local callback = useCallback(cb, deps)
+    useEffect(function()
+        return addGlobalHandler(eventId, callback, options)
+    end, deps)
+end
+
 return {
     -- Core util for hooks
     enableHooks = enableHooks,
@@ -140,4 +161,5 @@ return {
     useMemo = useMemo,
     useCallback = useCallback,
     useRef = useRef,
+    useEvent = useEvent,
 }
