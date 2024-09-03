@@ -5,9 +5,7 @@ if ... ~= "__react__.lib.core" then
 end
 
 -- Explicit imports here prevent scope pollution
-local addScopedHandler = require "__react__.lib.events".addScopedHandler
-local enableHooks = require "__react__.lib.hooks".enableHooks
-local disableHooks = require "__react__.lib.hooks".disableHooks
+local diff = require("__react__.lib.diff")
 
 -- Helper functions since I'm a filthy typescript user and I can't live without certain niceties
 local function merge(tbl1, tbl2)
@@ -99,6 +97,8 @@ local function updateNodeProp(node, k, v)
     node[k] = v
 end
 
+-- TODO: investigate deferred rendering
+--   should be able to defer rendering until next on_tick event, but that could easily cause problems in editor mode
 -- immediate mode rendering
 local function renderImmediate(vnode, index, parent, storage, recurse)
     local node = parent.children[index]
@@ -139,102 +139,6 @@ local function renderImmediate(vnode, index, parent, storage, recurse)
     recurse(vnode.children, node, storage.children[node.index])
 end
 
---- Renders a virtual element tree to a parent element
----
---- @param vlist table list of virtual elements, created by React.createElement
---- @param parent LuaGuiElement element to render to
---- @param storage? table hook storage (required if rendering element tree from different sources, e.g. in both on_gui_opened and on_gui_closed)
----
---- @see createElement
-local function render(vlist, parent, storage)
-    if not is_array(vlist) then
-        vlist = { vlist }
-    end
-
-    -- initialize storage if not present
-    if not storage then
-        storage = { hooks = {} }
-    end
-    -- capture current hook storage
-    local hs = storage.hooks or {}
-    -- clear hook storage global
-    storage.hooks = {}
-
-    -- render the virtual element list
-    local ids = {}
-    local extraNodeCount = 0
-    for i, vnode in ipairs(vlist) do
-        -- TODO: defer and batch forceUpdate requests
-        local forceUpdate = function() return render(vlist, parent, storage) end
-
-        -- special handling for string vnodes
-        if type(vnode) == "string" then
-            vnode = { type = "label", props = { caption = vnode } }
-        end
-
-        while (type(vnode.type) == "function") do
-            local k = vnode.props and vnode.props.key
-            if not k then
-                ids[vnode.type] = (ids[vnode.type] or 0) + 1
-                k = '' .. ids[vnode.type]
-            end
-
-            enableHooks(hs[k] or {}, forceUpdate)
-            vnode = vnode.type(vnode.props, vnode.children, forceUpdate)
-            storage.hooks[k] = disableHooks()
-        end
-
-        if is_array(vnode) then
-            for _, v in ipairs(vnode) do
-                -- we need to keep the index consistent, so we add extra nodes to the count
-                extraNodeCount = extraNodeCount + 1
-                renderImmediate(v, i + extraNodeCount, parent, storage, render)
-            end
-        elseif type(vnode) ~= nil then
-            renderImmediate(vnode, i + extraNodeCount, parent, storage, render)
-        end
-    end
-
-    -- Reconciliation
-    -- run new useEffect callbacks and store cleanup functions
-    for _, componentHooks in pairs(storage.hooks) do
-        for _, hook in pairs(componentHooks) do
-            if (hook.cb) then
-                local oldCleanup = hook.cleanup
-                -- run new effect
-                hook.cleanup = hook.cb()
-                -- run cleanup for existing effect (deps changed)
-                if oldCleanup and (type(oldCleanup) == "function") then oldCleanup() end
-                hook.cb = nil
-            end
-        end
-    end
-
-    -- run cleanup functions for removed hooks
-    for key, _ in pairs(hs) do
-        if not storage.hooks[key] then
-            for _, h in pairs(hs[key]) do
-                if (h.cleanup) then
-                    h.cleanup()
-                end
-                hs[key] = nil
-            end
-        end
-    end
-
-    -- remove extra elements
-    while not parent.tags.__react_ignored do
-        -- only remove elements that are not part of the virtual element list (including extra nodes added for fragments)
-        child = parent.children[#vlist + extraNodeCount + 1]
-        if child then
-            child.destroy()
-            render({}, parent, storage)
-        else
-            break
-        end
-    end
-end
-
 --- A function that creates a virtual element for rendering. Alternatively, you can use the shorthand `h` function, or JSX.
 ---
 --- @param type GuiElementType|function the type of element to create
@@ -246,6 +150,86 @@ end
 local function createElement(type, props, ...)
     local children = { ... }
     return { type = type, props = props or {}, children = children }
+end
+
+local function Fragment(props)
+    return props.children
+end
+
+local EMPTY_OBJ = {}
+
+--- Renders a virtual element tree to a parent element
+---
+--- @param vnode ComponentChild list of virtual elements, created by React.createElement
+--- @param parentDom LuaGuiElement element to render to
+--- @param replaceNode? LuaGuiElement|function element to replace
+---
+--- @see createElement
+local function render(vnode, parentDom, replaceNode)
+    -- We abuse the `replaceNode` parameter in `hydrate()` to signal if we are in
+	-- hydration mode or not by passing the `hydrate` function instead of a DOM
+	-- element..
+	local isHydrating = type(replaceNode) == 'function'
+
+	-- To be able to support calling `render()` multiple times on the same
+	-- DOM node, we need to obtain a reference to the previous tree. We do
+	-- this by assigning a new `_children` property to DOM nodes which points
+	-- to the last rendered tree. By default this property is not present, which
+	-- means that we are mounting a new tree for the first time.
+	local oldVNode = nil
+
+    vnode = createElement(Fragment, nil, { vnode });
+    if not isHydrating then
+		oldVNode = (replaceNode or parentDom).tags._children;
+        (replaceNode or parentDom).tags._children = vnode
+    else
+        parentDom.tags._children = vnode
+    end
+
+    local excessDomChildren = nil
+    local oldDom = nil
+
+    if (not isHydrating) and replaceNode then
+        oldDom = replaceNode
+        excessDomChildren = { replaceNode }
+    else
+        if oldVNode then
+            oldDom = oldVNode.tags._dom
+        else
+            -- TODO: this is kind of weird, there's no check to see if this would be non-nil but I guess its fine if this is nil
+            oldDom = parentDom.children[1]
+            if #parentDom.children > 0 then
+                excessDomChildren = util.deepcopy(parentDom.children)
+            end
+        end
+    end
+
+
+	-- List of effects that need to be called after diffing.
+	local commitQueue, refQueue = {}, {}
+	diff.applyDiff(
+		parentDom,
+		-- Determine the new vnode tree and store it on the DOM element on
+		-- our custom `_children` property.
+		vnode,
+		oldVNode or EMPTY_OBJ,
+		EMPTY_OBJ,
+		excessDomChildren,
+		commitQueue,
+		oldDom,
+		isHydrating,
+		refQueue
+	)
+
+	-- Flush all queued effects
+	diff.commitRoot(commitQueue, vnode, refQueue);
+end
+
+--- Update an existing DOM element with data from a Preact virtual node
+--- @param vnode ComponentChild The virtual node to render
+--- @param parentDom LuaGuiElement The DOM element to update
+local function hydrate(vnode, parentDom)
+	render(vnode, parentDom, hydrate);
 end
 
 --- A function that creates a "react_root" element. This is used as a container for the element tree in `render`.
@@ -262,7 +246,9 @@ local function createRoot(parent, props)
 end
 
 return {
-    createElement = createElement,
     createRoot = createRoot,
+    createElement = createElement,
+    Fragment = Fragment,
     render = render,
+    hydrate = hydrate,
 }

@@ -1,7 +1,7 @@
 --- Reactorio Hooks
 
-if ... ~= "__react__.lib.hooks" then
-    return require("__react__.lib.hooks")
+if ... ~= "__react__.hooks.core" then
+    return require("__react__.hooks.core")
 end
 
 local addGlobalHandler = require("__react__.lib.events").addGlobalHandler
