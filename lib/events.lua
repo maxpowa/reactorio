@@ -6,15 +6,15 @@ end
 
 -- TODO: This may change across versions... not very future-proof
 local supported_scoped_events = {
-    [defines.events.on_gui_click] = {"button", "sprite-button"},
-    [defines.events.on_gui_checked_state_changed] = {"checkbox"},
-    [defines.events.on_gui_confirmed] = {"textfield"},
-    [defines.events.on_gui_elem_changed] = {"choose-elem-button"},
-    [defines.events.on_gui_selection_state_changed] = {"drop-down", "list-box"},
-    [defines.events.on_gui_text_changed] = {"textfield", "text-box"},
-    [defines.events.on_gui_value_changed] = {"slider"},
-    [defines.events.on_gui_selected_tab_changed] = {"tabbed-pane"},
-    [defines.events.on_gui_switch_state_changed] = {"switch"},
+    [defines.events.on_gui_click] = { "button", "sprite-button" },
+    [defines.events.on_gui_checked_state_changed] = { "checkbox" },
+    [defines.events.on_gui_confirmed] = { "textfield" },
+    [defines.events.on_gui_elem_changed] = { "choose-elem-button" },
+    [defines.events.on_gui_selection_state_changed] = { "drop-down", "list-box" },
+    [defines.events.on_gui_text_changed] = { "textfield", "text-box" },
+    [defines.events.on_gui_value_changed] = { "slider" },
+    [defines.events.on_gui_selected_tab_changed] = { "tabbed-pane" },
+    [defines.events.on_gui_switch_state_changed] = { "switch" },
 }
 
 local function contains(tab, val)
@@ -64,13 +64,13 @@ local function addScopedHandler(eventId, element, fn, index)
 end
 
 --- Create an event handler for the given event type
---- 
+---
 --- @param eventId integer the event id to handle
 --- @param fn function the function to call when the event is triggered
---- @param options { index?: number, custom?: boolean } custom allows for custom events
---- 
+--- @param options? { index?: number, custom?: boolean } custom allows for custom events
+---
 --- @return function cleanup a cleanup function that will remove the handler
---- 
+---
 local function addGlobalHandler(eventId, fn, options)
     options = options or {}
     if type(fn) ~= "function" then
@@ -89,6 +89,19 @@ local function addGlobalHandler(eventId, fn, options)
     end
 end
 
+local function requestAnimationFrame(cb)
+    local ref = { cleanup = nil, called = false }
+    ref.cleanup = addGlobalHandler(defines.events.on_tick, function(event)
+        -- only allow the callback to be called exactly once
+        if not ref.called then
+            -- TODO: this should probably do something when it errors...
+            local status, err = pcall(cb, event)
+            ref.called = true
+            ref.cleanup()
+        end
+    end)
+end
+
 -- Register our supported events with the game's event emitter
 for k, _ in pairs(defines.events) do
     -- initialize the event handler table with this event type
@@ -101,4 +114,5 @@ end
 return {
     addScopedHandler = addScopedHandler,
     addGlobalHandler = addGlobalHandler,
+    requestAnimationFrame = requestAnimationFrame,
 }

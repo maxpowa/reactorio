@@ -2,16 +2,16 @@ if ... ~= "__react__.react" then
     return require("__react__.react")
 end
 
-local core = require("__react__.lib.core")
+local render = require("__react__.lib.render")
 local hooks = require("__react__.lib.hooks")
 local lsx = require("__react__.lib.lsx")
 
 return {
     -- Core
-    createRoot = core.createRoot,
-    createElement = core.createElement,
-    h = core.createElement,
-    render = core.render,
+    createRoot = create.createRoot,
+    createElement = create.createElement,
+    h = create.createElement,
+    render = render.render,
 
     -- Hooks
     useReducer = hooks.useReducer,
