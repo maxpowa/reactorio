@@ -65,27 +65,7 @@ local function createRef()
     return { current = nil }
 end
 
--- a function component that just renders its children directly
-local function Fragment(props)
-    return props.children
-end
-
---- A function that creates a "react_root" element. This is used as a container for the element tree in `render`.
----
---- @param parent LuaGuiElement the parent element to add the root to (e.g. `player.gui.screen`)
---- @param props? table a table of properties to set on the root element (you should not need to)
----
---- @return LuaGuiElement root the root element
-local function createRoot(parent, props)
-    if parent["react_root"] then
-        parent["react_root"].destroy()
-    end
-    return parent.add(merge(props or {}, { type = "flow", name = "react_root", }))
-end
-
 return {
-    createRoot = createRoot,
     createElement = createElement,
-    createRef = createRef,
-    Fragment = Fragment
+    createRef = createRef
 }

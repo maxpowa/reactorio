@@ -7,9 +7,8 @@ end
 -- Explicit imports here prevent scope pollution
 local diff = require("__react__.lib.diff")
 local createElement = require("__react__.lib.create").createElement
-local Fragment = require("__react__.lib.create").Fragment
-
-local EMPTY_OBJ = {}
+local Fragment = require("__react__.lib.constants").Fragment
+local EMPTY_OBJ = require("__react__.lib.constants").EMPTY_OBJ
 
 --- Renders a virtual element tree to a parent element
 ---

@@ -1,6 +1,7 @@
 local hooks = require("__react__.lib.hooks")
 local Component = require("__react__.lib.component").Component
-local Fragment = require("__react__.lib.create").Fragment
+local Fragment = require("__react__.lib.constants").Fragment
+local EMPTY_OBJ = require("__react__.lib.constants").EMPTY_OBJ
 
 local function shallowEquals(newProps, oldProps)
     if newProps == oldProps then
@@ -44,7 +45,51 @@ local function applyDiffChildren(
     local newChildrenLength = #renderResult
 
     newParentVNode._nextDom = oldDom
-    oldDom = 
+    constructNewChildrenArray(newParentVNode, renderResult, oldChildren)
+    oldDom = newParentVNode._nextDom
+
+    for i = 0, newChildrenLength do
+        local index = i + 1
+        local childVNode = newParentVNode._children[index]
+        if not childVNode then goto continue end
+
+        if childVNode._index == -1 then
+            oldVNode = EMPTY_OBJ
+        else
+            oldVNode = oldChildren and oldChildren[childVNode._index] or EMPTY_OBJ
+        end
+
+        childVNode._index = index
+
+        applyDiff(
+            parentDom,
+            childVNode,
+            oldVNode,
+            globalContext,
+            excessDomChildren,
+            commitQueue,
+            oldDom,
+            isHydrating,
+            refQueue
+        )
+
+        newDom = childVNode._dom
+        if childVNode.ref and oldVNode.ref ~= childVNode.ref then
+            if oldVNode.ref then
+                applyRef(oldVNode.ref, nil, childVNode)
+            end
+            refQueue[#refQueue + 1] = { childVNode.ref, childVNode._component or newDom, childVNode }
+        end
+
+        if firstChildDom == nil and newDom ~= nil then
+            firstChildDom = newDom
+        end
+
+        
+
+        ::continue::
+    end
+
 end
 
 local function applyDiffElementNodes(
@@ -225,10 +270,16 @@ local function commitRoot(commitQueue, root, refQueue)
         applyRef(ref, component, vnode)
     end
 
+    -- hooks cleanup/effects
+    for _, c in ipairs(commitQueue) do
+        
+    end
+
+    -- hooks shouldve handled this...
     for _, c in pairs(commitQueue) do
-        commitQueue = c._renderCallbacks
+        local callbacks = c._renderCallbacks
         c._renderCallbacks = {}
-        for _, cb in pairs(commitQueue) do
+        for _, cb in pairs(callbacks) do
             local status, err = pcall(cb, c)
             if not status then
                 options._catchError(err, c._vnode)
